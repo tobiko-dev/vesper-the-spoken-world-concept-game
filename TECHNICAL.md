@@ -99,3 +99,8 @@ Confirmed recovered behavior:
 - apostrophe normalization for Thor's Hammer / Thor's Lance.
 
 The earlier scratch archive itself is not present in this chat runtime, so this commit is a functional recovery of the verified state rather than a byte-identical restoration of that lost archive.
+
+
+## Visual restoration
+
+The Netlify migration now uses a reconstructed Bellwether scene based on the retained prototype screenshots: a navy-and-gold humanoid player, textured grass and cobblestone, fountain, cottages, Academy facade, lamps, benches, trees, waylights, and a restored HUD minimap. The original ChatGPT Site source bundle was not exportable, so this is a source-controlled reconstruction rather than a byte-for-byte export.

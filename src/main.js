@@ -1,5 +1,6 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 import { playableSpells, futureSpells, matchSpellFromSpeech, findAnySpellByName } from './spells.js';
+import { createWorld } from './world.js';
 
 const SAVE_KEY = 'vesper-spoken-world-save-v2';
 const root = document.querySelector('#app');
@@ -34,10 +35,12 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 1.8));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x82c7f2);
-scene.fog = new THREE.Fog(0x9fd3ec, 55, 150);
+scene.background = new THREE.Color(0x79b9df);
+scene.fog = new THREE.FogExp2(0xa8d6e7, 0.0065);
 
 const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, 0.1, 300);
 let cameraYaw = 0;
@@ -51,114 +54,7 @@ sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 scene.add(sun);
 
-function mat(color, roughness = 0.85) {
-  return new THREE.MeshStandardMaterial({ color, roughness });
-}
-
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(220, 220), mat(0x74af4f));
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
-scene.add(ground);
-
-const plaza = new THREE.Mesh(new THREE.CylinderGeometry(15, 15, 0.25, 48), mat(0xb8a16c));
-plaza.position.y = 0.1;
-plaza.receiveShadow = true;
-scene.add(plaza);
-
-const roadMat = mat(0xc7b37c);
-for (const z of [-30, -15, 15, 30]) {
-  const path = new THREE.Mesh(new THREE.BoxGeometry(5, 0.08, 15), roadMat);
-  path.position.set(0, 0.11, z);
-  path.receiveShadow = true;
-  scene.add(path);
-}
-
-function addTree(x, z, scale = 1) {
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35 * scale, 0.55 * scale, 4 * scale, 8), mat(0x9b7353));
-  trunk.position.set(x, 2 * scale, z);
-  trunk.castShadow = true;
-  scene.add(trunk);
-  const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(2.2 * scale, 1), mat(0x79c86d));
-  crown.position.set(x, 5.2 * scale, z);
-  crown.castShadow = true;
-  scene.add(crown);
-}
-[-20,-12,12,20].forEach((x, i) => addTree(x, -8 - (i % 2) * 7, 1 + (i % 3) * .08));
-[-22,-14,14,23].forEach((x, i) => addTree(x, 16 + (i % 2) * 8, .95 + (i % 2) * .1));
-
-function addBuilding(x, z, w, d, h) {
-  const base = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(0xe3ddc8));
-  base.position.set(x, h / 2, z);
-  base.castShadow = base.receiveShadow = true;
-  scene.add(base);
-  const roof = new THREE.Mesh(new THREE.ConeGeometry(Math.max(w, d) * .75, h * .45, 4), mat(0x668b91));
-  roof.position.set(x, h + h * .2, z);
-  roof.rotation.y = Math.PI / 4;
-  roof.castShadow = true;
-  scene.add(roof);
-}
-addBuilding(-24, 2, 10, 9, 6);
-addBuilding(24, 2, 10, 9, 6);
-addBuilding(-26, 24, 12, 10, 7);
-addBuilding(26, 24, 12, 10, 7);
-
-function addAcademyGate() {
-  const stone = mat(0xdad7c5);
-  const left = new THREE.Mesh(new THREE.BoxGeometry(4, 13, 4), stone);
-  const right = left.clone();
-  left.position.set(-8, 6.5, -48);
-  right.position.set(8, 6.5, -48);
-  const top = new THREE.Mesh(new THREE.BoxGeometry(20, 3, 4), stone);
-  top.position.set(0, 13, -48);
-  [left,right,top].forEach(m => { m.castShadow = m.receiveShadow = true; scene.add(m); });
-  for (let i = -1; i <= 1; i++) {
-    const spire = new THREE.Mesh(new THREE.ConeGeometry(1.2, 5, 4), mat(0x668b91));
-    spire.position.set(i * 8, 17, -48);
-    scene.add(spire);
-  }
-}
-addAcademyGate();
-
-const waylights = [];
-[-11, 0, 11].forEach((x, i) => {
-  const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(.9, 1.1, 2.2, 8), mat(0x88978e));
-  pedestal.position.set(x, 1.1, -22 - i * 6);
-  scene.add(pedestal);
-  const gem = new THREE.Mesh(new THREE.OctahedronGeometry(.85, 0), new THREE.MeshStandardMaterial({ color: 0x6fdfee, emissive: 0x14586a, emissiveIntensity: .3 }));
-  gem.position.set(x, 3, -22 - i * 6);
-  gem.userData = { kind: 'waylight', index: i, active: false };
-  scene.add(gem);
-  waylights.push(gem);
-});
-
-function makeHumanoid(color = 0x135c69, hair = 0xe9eef1) {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(.65, .9, 2.4, 8), mat(color));
-  body.position.y = 2.3;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(.65, 16, 12), mat(0xf2d5c2, .75));
-  head.position.y = 4.1;
-  const hairCap = new THREE.Mesh(new THREE.SphereGeometry(.68, 16, 8, 0, Math.PI * 2, 0, Math.PI * .56), mat(hair, .9));
-  hairCap.position.y = 4.25;
-  const leg1 = new THREE.Mesh(new THREE.BoxGeometry(.35, 1.5, .4), mat(0x253b4d));
-  const leg2 = leg1.clone();
-  leg1.position.set(-.28,.75,0); leg2.position.set(.28,.75,0);
-  const staff = new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,4.5,8), mat(0x5e4738));
-  staff.position.set(1.05,2.1,0);
-  const gem = new THREE.Mesh(new THREE.OctahedronGeometry(.35), new THREE.MeshStandardMaterial({ color:0x66e7ff, emissive:0x17677a, emissiveIntensity:1.2 }));
-  gem.position.set(1.05,4.35,0);
-  [body, head, hairCap, leg1, leg2, staff, gem].forEach(m => { m.castShadow = true; g.add(m); });
-  return g;
-}
-
-const player = makeHumanoid();
-player.position.set(state.position.x, 0, state.position.z);
-scene.add(player);
-
-const npc = makeHumanoid(0x4d7f78, 0xeedbd0);
-npc.scale.set(.9,.9,.9);
-npc.position.set(7,0,2);
-npc.userData = { kind:'npc', name:'Ilyra', role:'Keeper of the waylights' };
-scene.add(npc);
+const { player, npc, waylights } = createWorld(THREE, scene, state);
 
 const keys = new Set();
 let dragging = false;
@@ -258,8 +154,9 @@ function interact() {
     openDialogue();
   } else if (hit.obj.userData.kind === 'waylight') {
     hit.obj.userData.active = true;
-    hit.obj.material.emissive.setHex(0x68d9ff);
-    hit.obj.material.emissiveIntensity = 2.2;
+    const gem = hit.obj.userData.gem || hit.obj;
+    gem.material.emissive.setHex(0x68d9ff);
+    gem.material.emissiveIntensity = 2.2;
     state.quest = Math.min(3, state.quest + 1);
     toast(`Waylight awakened · ${state.quest}/3`);
     renderHud(); saveGame();
@@ -347,8 +244,9 @@ function loadGame() {
     (s.awakened || []).forEach((active, i) => {
       if (active && waylights[i]) {
         waylights[i].userData.active = true;
-        waylights[i].material.emissive.setHex(0x68d9ff);
-        waylights[i].material.emissiveIntensity = 2.2;
+        const gem = waylights[i].userData.gem || waylights[i];
+        gem.material.emissive.setHex(0x68d9ff);
+        gem.material.emissiveIntensity = 2.2;
       }
     });
     return true;
@@ -392,13 +290,14 @@ function renderHud() {
   hud.className = 'hud';
   hud.innerHTML = `
     <div class="hud-card player-card">
-      <div class="rank">E</div><div><strong>${escapeHtml(state.name)}</strong><span>Unaffiliated</span>
+      <div class="portrait" aria-hidden="true"><b>E</b></div><div><strong>${escapeHtml(state.name)}</strong><span>Unaffiliated</span>
       <div class="bar"><i style="width:${state.hp}%"></i></div>
       <div class="bar mana"><i style="width:${state.mana}%"></i></div></div>
     </div>
     <div class="hud-card quest-card"><small>YOUR CHRONICLE</small><h3>A light worth keeping</h3><p>Wake the three waylights on the academy road with Tinder. ${state.quest}/3</p><span>Open journal · J</span></div>
     <div class="location">W&nbsp;&nbsp;&nbsp; | &nbsp;&nbsp;&nbsp;N&nbsp;&nbsp;&nbsp; | &nbsp;&nbsp;&nbsp;E<br/><strong>Bellwether</strong></div>
     <div class="menu-buttons"><button data-book="atlas">⌘</button><button data-book="journal">▤</button><button data-book="grimoire">▭</button><button data-book="codex">◉</button><button data-settings>⚙</button></div>
+    <div class="minimap" aria-label="Bellwether minimap"><i class="map-road"></i><i class="map-player"></i><i class="map-light l1"></i><i class="map-light l2"></i><i class="map-light l3"></i><span>Bellwether</span></div>
     <div class="voice-state">${state.voiceStatus}</div>
     <div class="hotbar">${playableSpells.map(s => `<button data-slot="${s.slot}" class="${state.selectedSpell?.name===s.name?'selected':''}"><b>${s.slot}</b><span>${spellGlyph(s.effect)}</span><em>${s.level}</em></button>`).join('')}</div>
     <div class="cast-controls"><button id="voice-cast">V · INVOKE</button><span>Voice 100% · Assisted 65% · E interact · right-drag camera</span></div>
