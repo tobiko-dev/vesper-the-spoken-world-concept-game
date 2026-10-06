@@ -4,9 +4,7 @@
 
 A single-player fantasy RPG about shaping magic with your voice and finding your own way through the Lantern Vale.
 
-[Play the private preview](https://vesper-spoken-world.strongcaterpillar.chatgpt.site) · [Explore the world](public/world-guide.md)
-
-*The preview currently requires access. A public play link will be added when available.*
+[Play Vesper](https://vesper-concept.netlify.app/) · [Explore the world](public/world-guide.md)
 
 ## A glimpse of the vale
 
