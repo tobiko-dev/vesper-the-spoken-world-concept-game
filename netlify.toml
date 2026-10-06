@@ -1,8 +1,8 @@
 [build]
-  publish = "."
+  command = "pnpm build:web"
+  publish = "dist-web"
 
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "strict-origin-when-cross-origin"
+[build.environment]
+  NODE_VERSION = "22"
+  # The optional Sites build uses Next-compatible packages; this deploy is Vite.
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"

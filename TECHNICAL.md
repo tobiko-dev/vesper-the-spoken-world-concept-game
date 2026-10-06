@@ -1,106 +1,136 @@
-# Vesper — Technical Notes
+# Vesper — Technical Documentation
 
-## What this repository is
+This document holds setup, architecture, deployment, implementation notes, and validation history. The [README](README.md) is the visual introduction for players.
 
-This is the browser-playable Chapter I prototype source for **Vesper — The Spoken World**. It is intentionally lightweight: static HTML/CSS/ES modules plus Three.js loaded from jsDelivr. There is no required build step and no generated TypeScript cache.
+## Run the browser game
 
-The repository was reconstructed after the original source-package upload was interrupted. The gameplay state, UI language, confirmed spell data, future-spell roadmap, screenshots, save behavior, and voice-casting rules were recovered from the last verified prototype state. Where the lost scratch archive contained implementation-only details that could not be recovered, this repository uses a small clean replacement implementation rather than inventing a fake copy of the missing bytes.
+Requirements: Node.js 22.13 or later and pnpm 11.25.0 (pinned in `package.json`).
 
-## Run locally
-
-A local web server is required because the app uses ES modules.
-
-```bash
-python -m http.server 8080
+```sh
+pnpm install --frozen-lockfile
+pnpm dev:web
 ```
 
-Then open `http://localhost:8080`.
+Open the local URL printed by Vite. For a production build:
 
-## Controls
-
-- `WASD` — move
-- hold `Shift` — faster movement/dodge-like sprint
-- right-drag — rotate the third-person camera
-- mouse wheel — camera distance
-- `E` — interact
-- `V` — voice cast
-- `1`–`9` — assisted keyboard cast (65% potency)
-- `J` — journal
-- `G` — grimoire
-- `Esc` — pause / close world flow
-
-## Voice casting
-
-The prototype uses the browser Web Speech API when `SpeechRecognition` / `webkitSpeechRecognition` is available. A valid direct cast must contain both the level and spell name, for example:
-
-```text
-Level 2. Ember Lance.
+```sh
+pnpm build:web
+pnpm preview:web
 ```
 
-The matcher normalizes curly apostrophes and punctuation so names such as **Thor's Hammer** and **Thor's Lance** can be recognized consistently in contextual spell help. Future-lore spells remain non-castable.
+`build:web` writes a static site to `dist-web/`. It reuses `app/game/Game.tsx`, the existing game modules, UI components, and `public/` assets. It does not require a backend or API key. `web/main.tsx` is the standalone React entry point; `vite.web.config.ts` handles its build. No gameplay implementation is duplicated.
 
-Browsers without speech recognition can still use the `1`–`9` assisted casting fallback.
+## GitHub and Netlify
 
-## Saving
+Put the repository on GitHub first. Netlify can then import it and deploy future pushes automatically. The checked-in `netlify.toml` provides:
 
-State is stored in `localStorage` under `vesper-spoken-world-save-v2`. The game autosaves:
+| Setting | Value |
+| --- | --- |
+| Base directory | Repository root |
+| Build command | `pnpm build:web` |
+| Publish directory | `dist-web` |
+| Node version | `22` |
 
-- every 10 seconds,
-- when the pause screen is opened,
-- when the page becomes hidden,
-- and before leaving the page.
+`NETLIFY_NEXT_PLUGIN_SKIP=true` disables an automatically detected Next.js adapter. Next-compatible dependencies belong to the existing Sites build; the Netlify entry point is a plain Vite static build.
 
-The save includes the character name, HP, mana, position, first quest progress, awakened waylights, and timestamp.
+The package manager is pinned in `package.json`; keep `pnpm-lock.yaml` with the source. Do not publish `public/` on its own: it contains assets, not a built game. No Netlify functions or framework adapter are needed by this static entry point.
 
-## Architecture
+Netlify documentation: [Deploy from your repository](https://docs.netlify.com/start/quickstarts/deploy-from-repository/).
 
-```text
-index.html
-src/
-  main.js       world, movement, UI, saving, interactions, voice casting
-  spells.js     playable spell data, locked lore, speech normalization
-  styles.css    HUD, title screen, book UI, responsive layout
-public/
-  world-guide.md
-docs/
-  screenshots/
-netlify.toml
-README.md
-TECHNICAL.md
+The existing Sites preview remains private. This repository preparation does not create a GitHub repository, deploy to Netlify, or change preview access. Replace the README's private preview link with a verified public URL after deployment. Browser saves belong to each origin: progress on the current preview does not automatically transfer to a Netlify URL.
+
+## Project map
+
+| Path | Responsibility |
+| --- | --- |
+| `app/game/Game.tsx` | Title screen, HUD, books, settings, dialogue, voice lifecycle |
+| `app/game/engine.js` | Simulation, combat, quests, interaction, save scheduling |
+| `app/game/data.js` | Spell definitions, places, characters, lore, controls |
+| `app/game/rules.js` | State, progression, incantation parsing, save restoration |
+| `app/game/voice.js` | Browser speech recognition |
+| `app/game/casting-help.js` | Failure guidance, invocations, spell aliases |
+| `app/game/movement.js` | Locomotion, collision, camera smoothing |
+| `app/game/performance.js` | Performance presets and render scheduling |
+| `app/game/scene.js` | World construction |
+| `app/game/art-direction.js` | Visual materials and scene art helpers |
+| `app/game/character-art.js` | Shared human character models |
+| `app/game/software-renderer.js` | Reduced-detail Canvas rendering fallback |
+| `public/art/` | Generated portraits, sky, and surface art |
+| `public/world-guide.md` | Setting, spellbook, and future-world lore |
+| `web/` | Standalone static entry point for Netlify and local development |
+| `tests/` | Existing gameplay, performance, save, movement, and character checks |
+
+## Validation commands
+
+```sh
+pnpm exec tsc --noEmit
+node tests/chapter.mjs
+node tests/performance-and-help.mjs
+node tests/movement-and-save.mjs
+node tests/character-art.mjs
+pnpm build:web
 ```
 
-The 3D scene uses basic Three.js geometry so the repository remains self-contained apart from the Three.js CDN module. The art direction and UI are documented by the screenshots in `docs/screenshots/`.
+These checks do not replace a real microphone test or a hardware-rendered playthrough. The earlier implementation notes below distinguish automated checks from browser observations. A new public deployment should be checked for startup, assisted casting, voice permission and recognition, and saving across refresh.
 
-## Deployment
+## Documentation and image policy
 
-### Netlify
+Keep the README focused on screenshots, the premise, and playable features. Put technical changes here. Keep playable features distinct from planned worldbuilding. Do not invent a public demo URL or silently change a private deployment's audience.
 
-`netlify.toml` publishes the repository root directly. No install or build command is needed.
+The README images are unmodified captures retained from development:
 
-### GitHub Pages
+| Image | What it shows |
+| --- | --- |
+| `docs/screenshots/bellwether-spellcasting.jpg` | Bellwether and Stoneward's invocation hint, before the latest character revision |
+| `docs/screenshots/grimoire.jpg` | Ember Lance's grimoire page from an earlier interface/world-art revision |
+| `docs/screenshots/character-showcase.jpg` | Latest human character revision shown from four angles in a development viewer |
+| `docs/screenshots/save-and-continue.jpg` | Save settings and browser-local chronicle behavior |
 
-The project is also compatible with Pages because asset references are relative. Serve the repository root.
+The gameplay captures use the compatibility renderer. They are screenshots, not concept art. The character showcase is a development view, not an in-game screen. New browser captures were unavailable during this documentation pass; replace historical captures with current hardware-rendered screenshots when available.
 
-## Recovery / validation notes
+## Implemented scope and future work
 
-Confirmed recovered behavior:
+The opening chapter includes nine learnable spells, both progression routes, six linked quests, a rune puzzle, a boss, and the gate ending. The broader setting describes higher spell levels and ranks; those descriptions do not make later chapters playable.
 
-- third-person movement and right-drag camera,
-- Bellwether / Lantern Vale setting,
-- Ilyra and the three-waylight opening objective,
-- `E` interaction,
-- `V` voice casting and `1`–`9` assisted casting,
-- Journal / Grimoire / Atlas / Codex / Settings surfaces,
-- local browser autosaves,
-- Ember Lance's confirmed cost/recovery/invocation,
-- Stoneward's six-second defensive behavior and invocation,
-- future lore roadmap including Parallel/Multicast/Triple/Quad Cast,
-- Caldris and Vaelith naming,
-- apostrophe normalization for Thor's Hammer / Thor's Lance.
+The later continent, high-rank realm, incantationless casting, parallel casting, multiplayer, AR/VR, generative NPC dialogue, and server-enforced anti-cheat remain future work. No SSS rank is implemented.
 
-The earlier scratch archive itself is not present in this chat runtime, so this commit is a functional recovery of the verified state rather than a byte-identical restoration of that lost archive.
+## Existing host and implementation history
 
+Repository preparation on 2026-10-05: the standalone production build, TypeScript check, complete chapter integration harness, README/documentation relative links, screenshot decoding, and production asset references passed. The static output contains approximately 2.49 MB of uncompressed files, including images. Vite reports a 655.70 kB minified engine chunk; this is a download-size observation, not a runtime performance measurement. No public Netlify deployment or new browser playtest has been performed in this pass.
 
-## Visual restoration
+The sections below preserve the existing implementation and validation notes. The original Sites build remains available alongside the new static web build.
 
-The Netlify migration now uses a reconstructed Bellwether scene based on the retained prototype screenshots: a navy-and-gold humanoid player, textured grass and cobblestone, fountain, cottages, Academy facade, lamps, benches, trees, waylights, and a restored HUD minimap. The original ChatGPT Site source bundle was not exportable, so this is a source-controlled reconstruction rather than a byte-for-byte export.
+## Development
+
+The project uses the Sites Vinext starter, React, TypeScript, and Three.js. Preserve the pnpm lockfile and the Site identity in `.openai/hosting.json`.
+
+- `pnpm dev`: development server (managed Sites uses its supervised preview).
+- `pnpm build`: production build.
+- `node tests/chapter.mjs`: engine integration checks for both progression routes, all spell unlocks, puzzle/boss/finale, and core voice rules.
+- `pnpm exec tsc --noEmit`: type check.
+
+Speech uses browser-provided recognition. It is not a microphone-quality, speaker-verification, or anti-cheat system. HTTPS, permission, service availability, and internet access may be required. No API key is needed. NPC dialogue does not call an AI service.
+
+A Canvas 2D painter renderer provides reduced-detail graphics when WebGL is unavailable. Hardware rendering is recommended for full visuals. Core progression is identical.
+
+The cel-art revision adds stepped toon lighting and ink outlines, articulated character models with sculpted hair and facial features, illustrated portraits for the entire named cast, painted sky and surface materials, layered foliage, detailed town architecture, and animated spell sigils. Both renderers use the same models and generated art assets. The compatibility renderer uses affine texture projection and contact shadows; the hardware path provides perspective-correct textures and full directional shadows. Art lives in `public/art/`; procedural models and styling live in `app/game/art-direction.js`.
+
+WebMCP tools are feature-detected and register only when `document.modelContext` exists. They expose read-only chronicle state and opening the same books available in the UI. The current QA browser lacked that proposed API, so live WebMCP validation was unavailable.
+
+## Validation
+
+Performance revision: Balanced (default, 30 FPS cap), Battery saver (24), and High detail (60) control resolution, effects, and shadows. Resolution adapts to measured rendering cost. Title, paused, and hidden-tab states suspend world rendering and simulation. GPU scenery is merged by material and spatial region, and actor parts are merged without removing animation joints. Shadow maps are 1024² and update at most every 150 ms. Particle bursts share geometry and are bounded. The CPU renderer caches edge keys and shade palettes and culls distant foliage.
+
+`node tests/performance-and-help.mjs` verifies actual-world scenery batching (312 meshes to 103 batches), player batching (77 to 46 meshes), dynamic-object preservation, frame caps, idle suspension, and spell-help/alias rules. These are workload reductions, not measured GPU FPS improvements. Browser QA covered software rendering, Stoneward cooldown help and its transition to ready, and changing performance presets while paused. Failed casts show persistent contextual guidance; hover or focus a hotbar spell for its invocation and use. “Stonewall” and “stone wall” resolve to Stoneward without bypassing invocation, level, or unlock checks.
+
+The engine integration harness covers the complete independent chapter and academy acceptance/rejection. Browser inspection verifies game startup in software compatibility mode, assisted casting, spellbook, atlas, and codex. Physical microphone recognition and the GPU path require validation on a device providing those capabilities.
+
+The visual revision passed TypeScript checking and the chapter integration harness. Browser review verified the new models/materials, portrait HUD, People codex, and assisted spell casting in compatibility mode. Existing browser saves retain their identity and progression.
+
+Movement/save revision: camera-relative locomotion now uses frame-rate-independent acceleration and braking, shortest-angle turning, distance-based footfalls, swept wall sliding, and a camera arm that contracts around buildings. Smooth motion targets 60 FPS with reduced effects and no shadows. Existing version-1 saves remain compatible; character progression, position, settings, and camera view persist locally. Autosave runs every 10 seconds and on pause, hiding, and leaving; Settings includes a timestamp and Save now. Exams and temporary combat effects restart after reload. Clearing browser data removes the local chronicle; no cloud synchronization is provided.
+
+`node tests/movement-and-save.mjs` checks equal travel across 24/30/60/144 FPS, diagonal speed, braking, sliding and dodge collisions, camera obstruction, angular wrap, progression/camera save round-trip, exam reset, and preservation of the previous save when storage fails.
+
+Character volume revision: all seven characters retain human features. The shared model now has a continuous shaped torso and jaw, tapered limbs, almond eye surfaces, solid oval hair locks, a curved shoulder mantle, and wraparound coat panels with thickness. The previous six-head/chibi-style model has been replaced by longer proportions. Facial details use softer contours; the compatibility renderer uses averaged vertex normals and a gentler palette for characters. A seam-key correction prevents negative-zero coordinates from generating false outlines. Existing portraits and character identities remain intact.
+
+Static nested face/outfit pieces now batch across their containers while preserving animation pivots and the independent staff crystal. The revised player has 6,662 triangles and 45 material batches (previously 5,762 triangles and 46 batches); this is a geometry/batch budget comparison, not an FPS benchmark. `node tests/character-art.mjs` verifies all seven human models, torso depth, finite geometry, posed/transformed batching, animation pivots, staff identity, and geometry limits. Front, three-quarter, profile, rear, and live gameplay were reviewed using compatibility rendering. Hardware rendering still requires an available GPU for direct visual validation.
